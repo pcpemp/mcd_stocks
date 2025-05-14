@@ -77,9 +77,9 @@ def calculate_daily_returns(data_df_input, ticker_sym):
             st.warning("calc_daily_returns: 'Close' column has no valid numeric data after coercion. Returning empty Series.")
             return pd.Series(dtype=float)
 
-        daily_returns_series = close_prices_numeric.pct_change() * 100
+        daily_returns_series = close_prices_numeric.pct_change() #* 100
         result = daily_returns_series.dropna()
-        # st.write(f"Debug (calc_daily_returns): Final result type: {type(result)}, Is empty: {result.empty}")
+
         return result
     except Exception as e:
         st.error(f"!!! Exception INSIDE calculate_daily_returns's try block: {e}")
@@ -98,7 +98,7 @@ def create_distribution_chart(returns_data, title_prefix, bin_step=0.5, x_axis_l
     chart = alt.Chart(df_for_chart).mark_bar().encode(
         alt.X('returns_col:Q', bin=alt.Bin(step=bin_step), title=x_axis_label, axis=alt.Axis(format='%')),
         alt.Y('count()', title='Frequency'),
-        tooltip=[alt.X('returns_col:Q', bin=alt.Bin(step=bin_step), title=x_axis_label, format='.2f'), 'count()']
+        tooltip=[alt.X('returns_col:Q', bin=alt.Bin(step=bin_step), title=x_axis_label, format='.2%'), 'count()']
     ).properties(
         title=f'{title_prefix} (Bin Width: {bin_step}%)',
         width='container', # Ensures chart fits container width
@@ -179,7 +179,7 @@ enable_simulation_widgets = st.session_state.daily_returns_series is not None an
 num_simulations_input = st.sidebar.number_input(
     "Number of Simulations:",
     min_value=100, max_value=100000,
-    value=1000, step=100, key="num_sims",
+    value=10000, step=100, key="num_sims",
     disabled=not enable_simulation_widgets # Disable if no daily returns
 )
 
@@ -219,13 +219,13 @@ if st.session_state.daily_returns_series is not None or st.session_state.simulat
                 daily_chart = create_distribution_chart(
                     st.session_state.daily_returns_series,
                     title_prefix=f"Daily Returns for {st.session_state.ticker_symbol}",
-                    bin_step=0.5,
+                    bin_step=0.005,
                     x_axis_label="Daily Return Bins (%)"
                 )
                 if daily_chart:
                     st.altair_chart(daily_chart, use_container_width=True)
-                avg_daily_return = st.session_state.daily_returns_series.mean()
-                std_daily_return = st.session_state.daily_returns_series.std()
+                avg_daily_return = st.session_state.daily_returns_series.mean()*100
+                std_daily_return = st.session_state.daily_returns_series.std()*100
                 col1, col2 = st.columns(2)
                 col1.metric(label="Average Daily Return", value=f"{avg_daily_return:.2f}%" if pd.notna(avg_daily_return) else "N/A")
                 col2.metric(label="Std. Dev. of Daily Returns", value=f"{std_daily_return:.2f}%" if pd.notna(std_daily_return) else "N/A")
@@ -241,29 +241,29 @@ if st.session_state.daily_returns_series is not None or st.session_state.simulat
                 annual_chart = create_distribution_chart(
                     st.session_state.simulated_annual_returns_series,
                     title_prefix="Simulated Annual Performance",
-                    bin_step=5.0,
+                    bin_step=0.05,
                     x_axis_label="Annual Return Bins (%)"
                 )
                 if annual_chart:
                     st.altair_chart(annual_chart, use_container_width=True)
 
-                avg_sim_annual_return = st.session_state.simulated_annual_returns_series.mean()
-                median_sim_annual_return = st.session_state.simulated_annual_returns_series.median()
-                std_sim_annual_return = st.session_state.simulated_annual_returns_series.std()
-                sim_returns_for_percentile = st.session_state.simulated_annual_returns_series.dropna()
+                avg_sim_annual_return = st.session_state.simulated_annual_returns_series.mean()*100
+                median_sim_annual_return = st.session_state.simulated_annual_returns_series.median()*100
+                std_sim_annual_return = st.session_state.simulated_annual_returns_series.std()*100
+                sim_returns_for_percentile = st.session_state.simulated_annual_returns_series.dropna()*100
                 percentile_5, percentile_95 = np.nan, np.nan # Initialize
                 if not sim_returns_for_percentile.empty:
-                    percentile_5 = np.percentile(sim_returns_for_percentile, 5)
-                    percentile_95 = np.percentile(sim_returns_for_percentile, 95)
+                    percentile_5 = np.percentile(sim_returns_for_percentile, 2.5)
+                    percentile_95 = np.percentile(sim_returns_for_percentile, 97.5)
 
                 col1, col2, col3 = st.columns(3)
                 col1.metric(label="Avg. Sim. Annual Return", value=f"{avg_sim_annual_return:.2f}%" if pd.notna(avg_sim_annual_return) else "N/A")
                 col2.metric(label="Median Sim. Annual Return", value=f"{median_sim_annual_return:.2f}%" if pd.notna(median_sim_annual_return) else "N/A")
                 col3.metric(label="Std. Dev. Sim. Annual Returns", value=f"{std_sim_annual_return:.2f}%" if pd.notna(std_sim_annual_return) else "N/A")
                 if pd.notna(percentile_5) and pd.notna(percentile_95):
-                    st.markdown(f"**90% Confidence Interval (Simulated):** {percentile_5:.2f}% to {percentile_95:.2f}%")
+                    st.markdown(f"**95% Confidence Interval (Simulated):** {percentile_5:.2f}% to {percentile_95:.2f}%")
                 else:
-                    st.markdown("**90% Confidence Interval (Simulated):** Not enough data to calculate.")
+                    st.markdown("**95% Confidence Interval (Simulated):** Not enough data to calculate.")
         elif st.session_state.daily_returns_series is not None and not st.session_state.daily_returns_series.empty:
              st.info("Run the annual simulation to see results here.")
         else:
